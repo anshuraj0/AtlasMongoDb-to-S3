@@ -1,0 +1,45 @@
+import pandas as pd
+from pymongo import MongoClient
+from pandas import json_normalize
+#from pandas.io.json import json_normalize
+import certifi
+from io import StringIO # python3; python2: BytesIO 
+import boto3
+
+def _connect_mongo(db):
+    """ A util for making a connection to mongo """
+
+    mongo_uri = 'ENTER MONGO URI HERE'
+    conn = MongoClient(mongo_uri, tlsCAFile=certifi.where())
+
+    return conn[db]
+
+
+def read_mongo(db, collection, query={}, no_id=True):
+    """ Read from Mongo and Store into DataFrame """
+
+
+    # Make a query to the specific DB and Collection
+    cursor = db[collection].find(query)
+
+    # Expand the cursor and construct the DataFrame
+    df =  pd.DataFrame(json_normalize(list(cursor)))
+
+    # Delete the _id
+    if no_id and '_id' in df:
+        del df['_id']
+    print(df)
+    return df
+
+if __name__ == '__main__':
+    db = _connect_mongo(db='ENTER DATABASE NAME')
+    cursor = db.list_collection_names()
+    print(cursor)
+    for x in cursor :
+        df = read_mongo(db, x, {})
+        bucket = 'ENTER BUCKET NAME' # already created on S3
+        csv_buffer = StringIO()
+        df.to_csv(csv_buffer)
+        s3_resource = boto3.resource('s3')
+        s3_resource.Object(bucket,x+'.csv').put(Body=csv_buffer.getvalue())
+        print("CSV uploaded to S3!!!")
